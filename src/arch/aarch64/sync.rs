@@ -11,6 +11,7 @@
 use crate::arch::exception::*;
 use crate::arch::hvc::hvc_guest_handler;
 use crate::arch::ContextFrame;
+use crate::device::{emu_handler, EmuContext};
 use crate::traits::ContextFrameTrait;
 use crate::arch::vcpu::VmCpuRegisters;
 use crate::arch::hvc::{HVC_SYS, HVC_SYS_BOOT};
@@ -18,7 +19,6 @@ use crate::arch::hvc::{HVC_SYS, HVC_SYS_BOOT};
 pub const HVC_RETURN_REG: usize = 0;
 
 pub fn data_abort_handler(ctx: &mut ContextFrame) {
-    /* 
     let emu_ctx = EmuContext {
         address: exception_fault_addr(),
         width: exception_data_abort_access_width(),
@@ -27,7 +27,6 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
         reg: exception_data_abort_access_reg(),
         reg_width: exception_data_abort_access_reg_width(),
     };
-    */
     debug!("data fault addr 0x{:x}, esr: 0x{:x}",
         exception_fault_addr(), exception_esr());
     let elr = ctx.exception_pc();
@@ -47,9 +46,7 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
             exception_fault_addr(), ctx
         );           
     }
-    /* 
     if !emu_handler(&emu_ctx) {
-        active_vm().unwrap().show_pagetable(emu_ctx.address);
         info!(
             "write {}, width {}, reg width {}, addr {:x}, iss {:x}, reg idx {}, reg val 0x{:x}, esr 0x{:x}",
             exception_data_abort_access_is_write(),
@@ -58,7 +55,7 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
             emu_ctx.address,
             exception_iss(),
             emu_ctx.reg,
-            ctx.get_gpr(emu_ctx.reg),
+            ctx.gpr(emu_ctx.reg),
             exception_esr()
         );
         panic!(
@@ -66,7 +63,6 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
             emu_ctx.address, elr
         );
     }
-    */
     let val = elr + exception_next_instruction_step();
     ctx.set_exception_pc(val);
 }

@@ -2,7 +2,8 @@
 use aarch64_cpu::{asm, asm::barrier, registers::*};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
-use crate::arch::vcpu::VmCpuRegisters;
+use crate::arch::vcpu::{VmCpuRegisters, set_guest_trap_context};
+use crate::device::{emu_register_dev, emu_virtio_mmio_init, emu_virtio_mmio_handler, VIRTIO_IPA};
 use crate::msr;
 
 pub const HVC_SYS: usize = 0;
@@ -78,10 +79,14 @@ fn init_hv(root_paddr: usize, vm_ctx_addr: usize) {
             isb"
         );
     }
-    
-    let regs: &VmCpuRegisters = unsafe{core::mem::transmute(vm_ctx_addr)};
+    // add virtio devices
+    if !vmm_init_emulated_device() {
+        panic!("vmm_init_emulated_device failed");
+    }
+    let regs: &mut VmCpuRegisters = unsafe{core::mem::transmute(vm_ctx_addr)};
     // set vm system related register
     regs.vm_system_regs.ext_regs_restore();
+    set_guest_trap_context(&mut regs.guest_trap_context_regs);
 }
 
 fn init_sysregs() {
@@ -176,4 +181,22 @@ fn hvc_call(
         );
     }
     r0
+}
+fn vmm_init_emulated_device() -> bool {
+    // blk
+    emu_register_dev(
+        crate::device::EmuDeviceType::EmuDeviceTVirtioBlk,
+        // vm.id(),
+        // idx,
+        // emu_dev.base_ipa,
+        // emu_dev.length,
+        0,
+        VIRTIO_IPA[0],
+        0x200,
+        emu_virtio_mmio_handler,
+    );
+    if !emu_virtio_mmio_init( 0, crate::device::EmuDeviceType::EmuDeviceTVirtioBlk) {
+        return false;
+    }
+    true
 }

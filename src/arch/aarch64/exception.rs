@@ -12,6 +12,7 @@ use core::arch::global_asm;
 
 use tock_registers::interfaces::*;
 
+use crate::arch::vcpu::set_guest_trap_context;
 use crate::mrs;
 use crate::arch::ContextFrame;
 use crate::arch::sync::{data_abort_handler, hvc_handler};
@@ -166,7 +167,7 @@ pub fn exception_data_abort_access_is_sign_ext() -> bool {
 pub extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
     debug!("lower_aarch64_synchronous exception class:0x{:X}", exception_class());
     // current_cpu().set_context_addr(ctx);
-
+    set_guest_trap_context(ctx as *mut _);
     match exception_class() {
         0x24 => {
             // info!("Core[{}] data_abort_handler", cpu_id());

@@ -12,7 +12,8 @@
     unused_imports,
     unused_assignments
 )]
-#![deny(missing_docs, warnings)]
+// #![deny(missing_docs, warnings)]
+#![deny(warnings)]
 
 #![feature(naked_functions, asm_const, negative_impls, stdsimd, inline_const, concat_idents)]
 
@@ -35,7 +36,7 @@ mod hal;
 mod memory;
 mod traits;
 mod vcpus;
-
+mod device;
 /// HyperCraft Result Define.
 pub type HyperResult<T = ()> = Result<T, HyperError>;
 
@@ -58,7 +59,7 @@ pub use memory::{
 pub use vcpus::VmCpus;
 
 #[cfg(target_arch = "aarch64")]
-pub use arch::lower_aarch64_synchronous;
+pub use arch::{lower_aarch64_synchronous, get_current_cpu_gpr, set_current_cpu_gpr};
 
 #[cfg(target_arch = "x86_64")]
 pub use arch::{VmxExitReason, VmxExitInfo};

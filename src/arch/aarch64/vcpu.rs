@@ -25,6 +25,43 @@ use crate::traits::ContextFrameTrait;
 use crate::HyperCraftHal;
 use crate::arch::hvc::run_guest_by_trap2el2;
 
+static mut GUEST_TRAP_CONTEXT: Option<usize> = None;
+
+pub fn set_guest_trap_context(ctx: *mut ContextFrame) {
+    unsafe{
+        GUEST_TRAP_CONTEXT = Some(ctx as usize);
+    }
+}
+
+pub fn set_current_cpu_gpr(index: usize, val: usize) {
+    // Safety: Every trap to el2 will save guest trap context in GUEST_TRAP_CONTEXT.
+    unsafe {
+        match GUEST_TRAP_CONTEXT {
+            Some(ctx_addr) => {
+                let ctx = ctx_addr as *mut ContextFrame;
+                (*ctx).set_gpr(index, val);
+            },
+            None => {
+                panic!("set_current_cpu_gpr shouldn't be wrong")
+            }
+        }
+    }
+}
+
+pub fn get_current_cpu_gpr(index: usize) -> usize {
+    // Safety: Every trap to el2 will save guest trap context in GUEST_TRAP_CONTEXT.
+    unsafe {
+        match GUEST_TRAP_CONTEXT {
+            Some(ctx_addr) => {
+                let ctx = ctx_addr as *const ContextFrame;
+                (*ctx).gpr(index)
+            },
+            None => {
+                panic!("set_current_cpu_gpr shouldn't be wrong")
+            }
+        }
+    }
+}
 /// (v)CPU register state that must be saved or restored when entering/exiting a VM or switching
 /// between VMs.
 #[repr(C)]

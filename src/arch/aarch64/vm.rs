@@ -1,4 +1,25 @@
-use crate::{HyperCraftHal, GuestPageTableTrait, VmCpus, HyperResult};
+use crate::{HyperCraftHal, GuestPageTableTrait, VmCpus, HyperResult, GuestPhysAddr, HostPhysAddr};
+
+// static mut CURRENT_VM: &VM<dyn HyperCraftHal, dyn GuestPageTableTrait> = 0;
+
+// pub fn set_current_vm(vm: &VM<dyn HyperCraftHal, dyn GuestPageTableTrait>) {
+//     unsafe {
+//         CURRENT_VM = vm;
+//     }
+// }
+
+// pub fn get_current_vm() -> &VM<H: HyperCraftHal, G: GuestPageTableTrait> {
+//     unsafe {
+//         CURRENT_VM
+//     }
+// }
+
+// pub fn vm_ipa2pa(gpa: GuestPhysAddr) -> HostPhysAddr {
+//     match unsafe { CURRENT_VM.ipa2pa(gpa) } {
+//         Ok(addr) => addr,
+//         Err(_) => 0,
+//     }
+// }
 
 /// The guest VM
 #[repr(align(4096))]
@@ -34,5 +55,9 @@ impl <H: HyperCraftHal, G: GuestPageTableTrait> VM<H, G> {
         let vttbr_token = (self.vm_id << 48) | self.gpt.token();
         debug!("vttbr_token: 0x{:X}", self.gpt.token());
         vcpu.run(vttbr_token);
+    }
+
+    pub fn ipa2pa(&self, gpa: GuestPhysAddr) -> HyperResult<HostPhysAddr> {
+        self.gpt.translate(gpa)
     }
 }

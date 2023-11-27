@@ -11,10 +11,10 @@ mod ept;
 
 // pub use gic::{GICC, GICD, GICH, GICD_BASE};
 pub use ept::NestedPageTable;
-pub use vcpu::VCpu;
+pub use vcpu::{VCpu, get_current_cpu_gpr, set_current_cpu_gpr};
 pub use vm::VM;
 pub use cpu::PerCpu;
-
+pub use utils::*;
 // pub use config::*;
 
 pub use page_table::PageSize;
