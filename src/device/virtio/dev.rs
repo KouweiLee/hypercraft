@@ -4,7 +4,7 @@ use spin::Mutex;
 use super::{VIRTIO_BLK_F_SIZE_MAX, VIRTIO_BLK_F_SEG_MAX, VIRTIO_F_VERSION_1, BlkDesc};
 
 
-pub const VIRTIO_IPA: [usize;2] = [0xa003e00, 0];
+pub const VIRTIO_IPA: [usize;2] = [0xa004000, 0];
 
 
 #[derive(Copy, Clone, Debug)]

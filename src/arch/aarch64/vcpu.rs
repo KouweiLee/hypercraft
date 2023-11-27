@@ -49,6 +49,9 @@ pub fn set_current_cpu_gpr(index: usize, val: usize) {
 }
 
 pub fn get_current_cpu_gpr(index: usize) -> usize {
+    if index >= 31 {
+        return 0;
+    }
     // Safety: Every trap to el2 will save guest trap context in GUEST_TRAP_CONTEXT.
     unsafe {
         match GUEST_TRAP_CONTEXT {

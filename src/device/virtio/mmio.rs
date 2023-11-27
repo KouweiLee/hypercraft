@@ -311,7 +311,7 @@ impl VirtMmioRegs {
     pub fn init(&mut self, id: VirtioDeviceType) {
         self.magic = 0x74726976;
         self.version = 0x2;
-        self.vendor_id = 0x8888;
+        self.vendor_id = 0x554d4551;
         self.device_id = id as u32;
         self.dev_feature = 0;
         self.drv_feature = 0;
@@ -429,6 +429,7 @@ fn virtio_mmio_prologue_access(mmio: VirtioMmio, emu_ctx: &EmuContext, offset: u
             }
             VIRTIO_MMIO_VERSION => {
                 value = mmio.version();
+                info!("get version {}", value);
             }
             VIRTIO_MMIO_DEVICE_ID => {
                 value = mmio.device_id();

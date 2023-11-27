@@ -81,6 +81,7 @@ pub fn emu_register_dev(
     size: usize,
     handler: EmuDevHandler,
 ) {
+    info!("emu_register_dev");
     let mut emu_devs_list = EMU_DEVS_LIST.lock();
     if emu_devs_list.len() >= EMU_DEV_NUM_MAX {
         panic!("emu_register_dev: can't register more devs");

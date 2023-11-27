@@ -192,7 +192,7 @@ fn vmm_init_emulated_device() -> bool {
         // emu_dev.length,
         0,
         VIRTIO_IPA[0],
-        0x200,
+        0x1000,
         emu_virtio_mmio_handler,
     );
     if !emu_virtio_mmio_init( 0, crate::device::EmuDeviceType::EmuDeviceTVirtioBlk) {
