@@ -335,32 +335,58 @@ pub fn virtio_blk_notify_handler(vq: Virtq, blk: VirtioMmio) -> bool {
     return true;
 }
 
+pub trait PlatOperation {
+    fn blk_read(offset: usize, count: usize, buf: usize) -> bool;
+
+    fn blk_write(offset: usize, count: usize, buf: usize) -> bool;
+}
+
+struct FakeBlkDevice;
+
+impl PlatOperation for FakeBlkDevice {
+    fn blk_read(offset: usize, count: usize, buf: usize) -> bool{
+        if offset + count >= SECTOR_BSIZE * SECTORS_NUM {
+            error!("blk requests exceed blk device");
+            return false;
+        }
+        unsafe {
+            let src: *const u8 = &BLOCK_DEVICE[offset] as *const _;
+            let dst: *mut u8 = buf as *mut _;
+            core::ptr::copy_nonoverlapping(src, dst, count);
+        }
+        true
+    }
+
+    fn blk_write(offset: usize, count: usize, buf: usize) -> bool {
+        if offset + count >= SECTOR_BSIZE * SECTORS_NUM {
+            error!("blk requests exceed blk device");
+            return false;
+        }
+        unsafe {
+            let src: *const u8 = buf as *const _;
+            let dst: *mut u8 = &mut BLOCK_DEVICE[offset] as *mut _;
+            core::ptr::copy_nonoverlapping(src, dst, count);
+        }
+        true
+    }
+}
+
 const SECTORS_NUM: usize = 32;
 /// a fake blk device
 static mut BLOCK_DEVICE: [u8; SECTOR_BSIZE * SECTORS_NUM] = [0; SECTOR_BSIZE * SECTORS_NUM];
+
 fn process_blk_requests(req_list: Vec<VirtioBlkReqNode>, vq: &Virtq) -> bool {
     for req in req_list {
         let mut write_len = 0;
         match req.req_type {
             VIRTIO_BLK_T_IN | VIRTIO_BLK_T_OUT => {
                 let mut offset = req.sector * SECTOR_BSIZE;
-                if req.iov_sum_up + offset >= SECTOR_BSIZE * SECTORS_NUM {
-                    error!("blk requests exceed blk device");
-                    return false;
-                }
-                let mut src: *const u8;
-                let mut dst: *mut u8;
                 for aiov in req.iov {
-                    unsafe {
-                        if req.req_type == VIRTIO_BLK_T_IN as u32{
-                            src = &BLOCK_DEVICE[offset] as *const u8;
-                            dst = aiov.data_bg as *mut u8;
-                            write_len = req.iov_sum_up;
-                        } else {
-                            src = aiov.data_bg as *const u8;
-                            dst = &mut BLOCK_DEVICE[offset] as *mut u8;
-                        }
-                        core::ptr::copy_nonoverlapping(src, dst, aiov.len as usize);
+                    if req.req_type == VIRTIO_BLK_T_IN as u32{
+                        FakeBlkDevice::blk_read(offset, aiov.len as _, aiov.data_bg);
+                        write_len += aiov.len;
+                    } else {
+                        FakeBlkDevice::blk_write(offset, aiov.len as _, aiov.data_bg);
                     }
                     offset += aiov.len as usize;
                 }
