@@ -10,25 +10,25 @@
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::mem::size_of;
 use core::arch::global_asm;
-use spin::Mutex;
 use core::marker::PhantomData;
+use core::mem::size_of;
+use spin::Mutex;
 
 // type ContextFrame = crate::arch::contextFrame::Aarch64ContextFrame;
 use cortex_a::registers::*;
 use tock_registers::interfaces::*;
- 
-use crate::arch::ContextFrame;
+
 use crate::arch::context_frame::VmContext;
+use crate::arch::hvc::run_guest_by_trap2el2;
+use crate::arch::ContextFrame;
 use crate::traits::ContextFrameTrait;
 use crate::HyperCraftHal;
-use crate::arch::hvc::run_guest_by_trap2el2;
 
 static mut GUEST_TRAP_CONTEXT: Option<usize> = None;
 
 pub fn set_guest_trap_context(ctx: *mut ContextFrame) {
-    unsafe{
+    unsafe {
         GUEST_TRAP_CONTEXT = Some(ctx as usize);
     }
 }
@@ -40,7 +40,7 @@ pub fn set_current_cpu_gpr(index: usize, val: usize) {
             Some(ctx_addr) => {
                 let ctx = ctx_addr as *mut ContextFrame;
                 (*ctx).set_gpr(index, val);
-            },
+            }
             None => {
                 panic!("set_current_cpu_gpr shouldn't be wrong")
             }
@@ -58,7 +58,7 @@ pub fn get_current_cpu_gpr(index: usize) -> usize {
             Some(ctx_addr) => {
                 let ctx = ctx_addr as *const ContextFrame;
                 (*ctx).gpr(index)
-            },
+            }
             None => {
                 panic!("set_current_cpu_gpr shouldn't be wrong")
             }
@@ -91,7 +91,7 @@ impl VmCpuRegisters {
 
 /// A virtual CPU within a guest
 #[derive(Clone)]
-pub struct VCpu<H:HyperCraftHal> {
+pub struct VCpu<H: HyperCraftHal> {
     /// Vcpu id
     pub vcpu_id: usize,
     /// Vcpu context
@@ -103,7 +103,7 @@ pub struct VCpu<H:HyperCraftHal> {
     marker: PhantomData<H>,
 }
 
-impl <H:HyperCraftHal> VCpu<H> {
+impl<H: HyperCraftHal> VCpu<H> {
     /// Create a new vCPU
     pub fn new(id: usize) -> Self {
         Self {
@@ -131,20 +131,20 @@ impl <H:HyperCraftHal> VCpu<H> {
     /// Run this vcpu
     pub fn run(&self, vttbr_token: usize) {
         // loop {  // because of elr_el2, it will not return to this?
-            _ = run_guest_by_trap2el2(vttbr_token, self.vcpu_ctx_addr());
+        _ = run_guest_by_trap2el2(vttbr_token, self.vcpu_ctx_addr());
         // }
     }
-    
+
     /// Get vcpu whole context address
     pub fn vcpu_ctx_addr(&self) -> usize {
         &(self.regs) as *const _ as usize
     }
-    
+
     /// Get vcpu trap context for guest or arceos
     pub fn vcpu_trap_ctx_addr(&self, if_guest: bool) -> usize {
         if if_guest {
             &(self.regs.guest_trap_context_regs) as *const _ as usize
-        }else {
+        } else {
             &(self.regs.save_for_os_context_regs) as *const _ as usize
         }
     }
@@ -166,21 +166,22 @@ impl <H:HyperCraftHal> VCpu<H> {
         self.regs.vm_system_regs.cntkctl_el1 = 0;
         self.regs.vm_system_regs.pmcr_el0 = 0;
         // self.regs.vm_system_regs.vtcr_el2 = 0x8001355c;
-        self.regs.vm_system_regs.vtcr_el2 = (VTCR_EL2::PS::PA_40B_1TB   //0b001 36 bits, 64GB.
+        self.regs.vm_system_regs.vtcr_el2 =
+            (VTCR_EL2::PS::PA_40B_1TB   //0b001 36 bits, 64GB.
                                           + VTCR_EL2::TG0::Granule4KB
                                           + VTCR_EL2::SH0::Inner
                                           + VTCR_EL2::ORGN0::NormalWBRAWA
                                           + VTCR_EL2::IRGN0::NormalWBRAWA
                                           + VTCR_EL2::SL0.val(0b01)
-                                          + VTCR_EL2::T0SZ.val(64 - 40)).into();
+                                          + VTCR_EL2::T0SZ.val(64 - 40))
+            .into();
         //self.regs.vm_system_regs.hcr_el2 = 0x80000001;  // Maybe we do not need smc setting? passthrough gic.
-        self.regs.vm_system_regs.hcr_el2 = (HCR_EL2::VM::Enable
-                                         + HCR_EL2::RW::EL1IsAarch64).into();
+        self.regs.vm_system_regs.hcr_el2 = (HCR_EL2::VM::Enable + HCR_EL2::RW::EL1IsAarch64).into();
         let mut vmpidr = 0;
         vmpidr |= 1 << 31;
         vmpidr |= self.vcpu_id;
         self.regs.vm_system_regs.vmpidr_el2 = vmpidr as u64;
-        
+
         // self.gic_ctx_reset(); // because of passthrough gic, do not need gic context anymore?
     }
 
@@ -188,12 +189,11 @@ impl <H:HyperCraftHal> VCpu<H> {
     fn vcpu_arch_init(&mut self, kernel_entry_point: usize, device_tree_ipa: usize) {
         self.set_gpr(0, device_tree_ipa);
         self.set_elr(kernel_entry_point);
-        self.regs.guest_trap_context_regs.spsr =( SPSR_EL1::M::EL1h + 
-                                            SPSR_EL1::I::Masked + 
-                                            SPSR_EL1::F::Masked + 
-                                            SPSR_EL1::A::Masked + 
-                                            SPSR_EL1::D::Masked )
-                                            .value;
+        self.regs.guest_trap_context_regs.spsr = (SPSR_EL1::M::EL1h
+            + SPSR_EL1::I::Masked
+            + SPSR_EL1::F::Masked
+            + SPSR_EL1::A::Masked
+            + SPSR_EL1::D::Masked)
+            .value;
     }
-
 }

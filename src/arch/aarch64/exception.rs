@@ -12,10 +12,10 @@ use core::arch::global_asm;
 
 use tock_registers::interfaces::*;
 
-use crate::arch::vcpu::set_guest_trap_context;
-use crate::mrs;
-use crate::arch::ContextFrame;
 use crate::arch::sync::{data_abort_handler, hvc_handler};
+use crate::arch::vcpu::set_guest_trap_context;
+use crate::arch::ContextFrame;
+use crate::mrs;
 use crate::traits::ContextFrameTrait;
 
 //global_asm!(include_str!("exception.S"));
@@ -90,14 +90,15 @@ fn translate_far_to_hpfar(far: usize) -> Result<usize, ()> {
 #[inline(always)]
 pub fn exception_fault_addr() -> usize {
     let far = exception_far();
-    let hpfar = if (exception_esr() & ESR_ELx_S1PTW) == 0 && exception_data_abort_is_permission_fault() {
-        translate_far_to_hpfar(far).unwrap_or_else(|_| {
-            info!("error happen in translate_far_to_hpfar");
-            0
-        })
-    } else {
-        exception_hpfar()
-    };
+    let hpfar =
+        if (exception_esr() & ESR_ELx_S1PTW) == 0 && exception_data_abort_is_permission_fault() {
+            translate_far_to_hpfar(far).unwrap_or_else(|_| {
+                info!("error happen in translate_far_to_hpfar");
+                0
+            })
+        } else {
+            exception_hpfar()
+        };
     (far & 0xfff) | (hpfar << 8)
 }
 
@@ -165,7 +166,10 @@ pub fn exception_data_abort_access_is_sign_ext() -> bool {
 /// deal with lower aarch64 synchronous exception
 #[no_mangle]
 pub extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
-    debug!("lower_aarch64_synchronous exception class:0x{:X}", exception_class());
+    debug!(
+        "lower_aarch64_synchronous exception class:0x{:X}",
+        exception_class()
+    );
     // current_cpu().set_context_addr(ctx);
     set_guest_trap_context(ctx as *mut _);
     match exception_class() {
@@ -177,7 +181,7 @@ pub extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
             hvc_handler(ctx);
         }
         // 0x18 todo？
-        _ => {   
+        _ => {
             panic!(
                 "handler not presents for EC_{} @ipa 0x{:x}, @pc 0x{:x}, @esr 0x{:x}, @sctlr_el1 0x{:x}, @vttbr_el2 0x{:x}, ",
                 exception_class(),
@@ -187,6 +191,6 @@ pub extern "C" fn lower_aarch64_synchronous(ctx: &mut ContextFrame) {
                 cortex_a::registers::SCTLR_EL1.get() as usize,
                 cortex_a::registers::VTTBR_EL2.get() as usize,
             );
-        },
+        }
     }
 }

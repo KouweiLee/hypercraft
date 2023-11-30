@@ -10,13 +10,17 @@
 
 use crate::arch::exception::*;
 use crate::arch::hvc::hvc_guest_handler;
-use crate::arch::ContextFrame;
-use crate::device::{emu_handler, EmuContext};
-use crate::traits::ContextFrameTrait;
-use crate::arch::vcpu::VmCpuRegisters;
 use crate::arch::hvc::{HVC_SYS, HVC_SYS_BOOT};
+use crate::arch::vcpu::VmCpuRegisters;
+use crate::arch::ContextFrame;
+use crate::device::EmuContext;
+use crate::traits::ContextFrameTrait;
 
 pub const HVC_RETURN_REG: usize = 0;
+
+extern "C" {
+    fn emu_handler(emu_ctx: &EmuContext) -> bool;
+}
 
 pub fn data_abort_handler(ctx: &mut ContextFrame) {
     let emu_ctx = EmuContext {
@@ -27,8 +31,11 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
         reg: exception_data_abort_access_reg(),
         reg_width: exception_data_abort_access_reg_width(),
     };
-    debug!("data fault addr 0x{:x}, esr: 0x{:x}",
-        exception_fault_addr(), exception_esr());
+    debug!(
+        "data fault addr 0x{:x}, esr: 0x{:x}",
+        exception_fault_addr(),
+        exception_esr()
+    );
     let elr = ctx.exception_pc();
 
     if !exception_data_abort_handleable() {
@@ -43,10 +50,11 @@ pub fn data_abort_handler(ctx: &mut ContextFrame) {
         // No migrate need
         panic!(
             "Data abort is not translate fault 0x{:x}\n ctx: {}",
-            exception_fault_addr(), ctx
-        );           
+            exception_fault_addr(),
+            ctx
+        );
     }
-    if !emu_handler(&emu_ctx) {
+    if !unsafe { emu_handler(&emu_ctx) } {
         info!(
             "write {}, width {}, reg width {}, addr {:x}, iss {:x}, reg idx {}, reg val 0x{:x}, esr 0x{:x}",
             exception_data_abort_access_is_write(),
@@ -86,14 +94,17 @@ pub fn hvc_handler(ctx: &mut ContextFrame) {
             ctx.set_gpr(HVC_RETURN_REG, val);
         }
         Err(_) => {
-            warn!("Failed to handle hvc request fid 0x{:x} event 0x{:x}", hvc_type, event);
+            warn!(
+                "Failed to handle hvc request fid 0x{:x} event 0x{:x}",
+                hvc_type, event
+            );
             ctx.set_gpr(HVC_RETURN_REG, usize::MAX);
         }
     }
-    if hvc_type==HVC_SYS && event== HVC_SYS_BOOT {
+    if hvc_type == HVC_SYS && event == HVC_SYS_BOOT {
         unsafe {
-            let regs: &mut VmCpuRegisters = core::mem::transmute(x1);   // x1 is the vm regs context
-            // save arceos context
+            let regs: &mut VmCpuRegisters = core::mem::transmute(x1); // x1 is the vm regs context
+                                                                      // save arceos context
             regs.save_for_os_context_regs.gpr = ctx.gpr;
             regs.save_for_os_context_regs.sp = ctx.sp;
             regs.save_for_os_context_regs.elr = ctx.elr;

@@ -1,24 +1,24 @@
 mod context_frame;
 mod cpu;
+mod ept;
 mod exception;
+mod gic;
 mod hvc;
 mod sync;
 mod utils;
 mod vcpu;
 mod vm;
-mod gic;
-mod ept;
 
 // pub use gic::{GICC, GICD, GICH, GICD_BASE};
-pub use ept::NestedPageTable;
-pub use vcpu::{VCpu, get_current_cpu_gpr, set_current_cpu_gpr};
-pub use vm::VM;
 pub use cpu::PerCpu;
+pub use ept::NestedPageTable;
 pub use utils::*;
+pub use vcpu::{get_current_cpu_gpr, set_current_cpu_gpr, VCpu};
+pub use vm::VM;
 // pub use config::*;
 
-pub use page_table::PageSize;
 pub use exception::lower_aarch64_synchronous;
+pub use page_table::PageSize;
 
 type ContextFrame = crate::arch::context_frame::Aarch64ContextFrame;
 
@@ -71,9 +71,10 @@ pub fn memset_safe(s: *mut u8, c: i32, n: usize) -> *mut u8 {
 
 pub fn memcpy_safe(s1: *const u8, s2: *const u8, n: usize) -> *mut u8 {
     if (s1 as usize) < 0x1000 || (s2 as usize) < 0x1000 {
-        panic!("illegal addr for memcpy s1 {:x} s2 {:x}", s1 as usize, s2 as usize);
+        panic!(
+            "illegal addr for memcpy s1 {:x} s2 {:x}",
+            s1 as usize, s2 as usize
+        );
     }
     unsafe { memcpy(s1, s2, n) }
 }
-
-

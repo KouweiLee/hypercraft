@@ -1,9 +1,7 @@
-
 use aarch64_cpu::{asm, asm::barrier, registers::*};
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
-use crate::arch::vcpu::{VmCpuRegisters, set_guest_trap_context};
-use crate::device::{emu_register_dev, emu_virtio_mmio_init, emu_virtio_mmio_handler, VIRTIO_IPA};
+use crate::arch::vcpu::{set_guest_trap_context, VmCpuRegisters};
 use crate::msr;
 
 pub const HVC_SYS: usize = 0;
@@ -32,7 +30,10 @@ pub fn hvc_guest_handler(
     match hvc_type {
         HVC_SYS => hvc_sys_handler(event, x0, x1),
         _ => {
-            info!("hvc_guest_handler: unknown hvc type {} event {}", hvc_type, event);
+            info!(
+                "hvc_guest_handler: unknown hvc type {} event {}",
+                hvc_type, event
+            );
             Err(())
         }
     }
@@ -59,31 +60,29 @@ fn hvc_sys_handler(event: usize, root_paddr: usize, vm_ctx_addr: usize) -> Resul
 /// hvc handler for initial hv
 /// x0: root_paddr, x1: vm regs context addr
 fn init_hv(root_paddr: usize, vm_ctx_addr: usize) {
-    // cptr_el2: Condtrols trapping to EL2 for accesses to the CPACR, Trace functionality 
+    // cptr_el2: Condtrols trapping to EL2 for accesses to the CPACR, Trace functionality
     //           an registers associated with floating-point and Advanced SIMD execution.
 
     // ldr x2, =(0x30c51835)  // do not set sctlr_el2 as this value, some fields have no use.
     unsafe {
-        core::arch::asm!("
+        core::arch::asm!(
+            "
             mov x3, xzr           // Trap nothing from EL1 to El2.
             msr cptr_el2, x3"
         );
     }
-        // init_page_table(root_paddr);
+    // init_page_table(root_paddr);
     msr!(VTTBR_EL2, root_paddr);
-        // init_sysregs();
+    // init_sysregs();
     unsafe {
-        core::arch::asm!("
+        core::arch::asm!(
+            "
             tlbi	alle2         // Flush tlb
             dsb	nsh
             isb"
         );
     }
-    // add virtio devices
-    if !vmm_init_emulated_device() {
-        panic!("vmm_init_emulated_device failed");
-    }
-    let regs: &mut VmCpuRegisters = unsafe{core::mem::transmute(vm_ctx_addr)};
+    let regs: &mut VmCpuRegisters = unsafe { core::mem::transmute(vm_ctx_addr) };
     // set vm system related register
     regs.vm_system_regs.ext_regs_restore();
     set_guest_trap_context(&mut regs.guest_trap_context_regs);
@@ -94,19 +93,14 @@ fn init_sysregs() {
         asm::barrier,
         registers::{HCR_EL2, SCTLR_EL2},
     };
-    HCR_EL2.write(    
-        HCR_EL2::VM::Enable
-            + HCR_EL2::RW::EL1IsAarch64,
-    );  // Make irq and fiq do not route to el2
-    SCTLR_EL2.modify(SCTLR_EL2::M::Enable 
-                    + SCTLR_EL2::C::Cacheable 
-                    + SCTLR_EL2::I::Cacheable); // other fields need? EIS, EOS?
+    HCR_EL2.write(HCR_EL2::VM::Enable + HCR_EL2::RW::EL1IsAarch64); // Make irq and fiq do not route to el2
+    SCTLR_EL2.modify(SCTLR_EL2::M::Enable + SCTLR_EL2::C::Cacheable + SCTLR_EL2::I::Cacheable); // other fields need? EIS, EOS?
     barrier::isb(barrier::SY);
 }
 
 fn init_page_table(vttbr: usize) {
     use aarch64_cpu::registers::{VTCR_EL2, VTTBR_EL2};
-    /* 
+    /*
     VTCR_EL2.write(
         VTCR_EL2::PS::PA_36B_64GB   //0b001 36 bits, 64GB.
             + VTCR_EL2::TG0::Granule4KB
@@ -120,13 +114,13 @@ fn init_page_table(vttbr: usize) {
     msr!(VTTBR_EL2, vttbr);
 }
 
-/* 
+/*
 // really need init MAIR_EL2 and TCR_EL2 ??
-// MAIR_EL2: Provides the memory attribute encodings corresponding to the possible 
-//           AttrIndx values in a Long-descriptor format translation table entry for 
+// MAIR_EL2: Provides the memory attribute encodings corresponding to the possible
+//           AttrIndx values in a Long-descriptor format translation table entry for
 //           stage 1 translations at EL2.
-// TCR_EL2: When the Effective value of HCR_EL2.E2H is 0, this register controls stage 1 
-//          of the EL2 translation regime, that supports a single VA range, translated 
+// TCR_EL2: When the Effective value of HCR_EL2.E2H is 0, this register controls stage 1
+//          of the EL2 translation regime, that supports a single VA range, translated
 //          using TTBR0_EL2.
 unsafe fn init_hv_mmu(token: usize) {
     MAIR_EL2.write(
@@ -155,10 +149,10 @@ unsafe fn init_hv_mmu(token: usize) {
 
 #[inline(never)]
 fn hvc_call(
-    x0: usize, 
-    x1: usize, 
-    x2: usize, 
-    x3: usize, 
+    x0: usize,
+    x1: usize,
+    x2: usize,
+    x3: usize,
     x4: usize,
     x5: usize,
     x6: usize,
@@ -181,22 +175,4 @@ fn hvc_call(
         );
     }
     r0
-}
-fn vmm_init_emulated_device() -> bool {
-    // blk
-    emu_register_dev(
-        crate::device::EmuDeviceType::EmuDeviceTVirtioBlk,
-        // vm.id(),
-        // idx,
-        // emu_dev.base_ipa,
-        // emu_dev.length,
-        0,
-        VIRTIO_IPA[0],
-        0x1000,
-        emu_virtio_mmio_handler,
-    );
-    if !emu_virtio_mmio_init( 0, crate::device::EmuDeviceType::EmuDeviceTVirtioBlk) {
-        return false;
-    }
-    true
 }
